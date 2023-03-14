@@ -3,10 +3,20 @@ package entity
 import (
 	"fmt"
 	"io"
+	"time"
 )
 
 type Sleeper interface {
 	Sleep()
+}
+
+type SleeperConfiguravel struct {
+	Duracao time.Duration
+	Pausa   func(time.Duration)
+}
+
+func (s *SleeperConfiguravel) Sleep() {
+	s.Pausa(s.Duracao)
 }
 
 const ultimaPalavra = "Vai!"
