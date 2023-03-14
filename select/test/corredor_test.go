@@ -1,21 +1,27 @@
 package test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 )
 
-func Corredor(a, b string) (vencedor string) {
+var limiteDeDezSegundos = 10 * time.Second
 
+func Corredor(a, b string) (vencedor string, err error) {
+	return Configuravel(a, b, limiteDeDezSegundos)
+}
+func Configuravel(a, b string, tempoLimite time.Duration) (vencedor string, err error) {
 	select {
 	case <-ping(a):
-		return a
+		return a, nil
 	case <-ping(b):
-		return b
+		return b, nil
+	case <-time.After(tempoLimite):
+		return "", fmt.Errorf("tempo limite de espera excedido para %s e %s", a, b)
 	}
-
 }
 
 func ping(URL string) chan bool {
@@ -35,23 +41,39 @@ func ping(URL string) chan bool {
 
 func TestCorredor(t *testing.T) {
 
-	servidorLento := criarServidorComAtraso(20 * time.Millisecond)
+	t.Run("retorna um erro se o servidor não responder dentro de 10s", func(t *testing.T) {
+		servidorA := criarServidorComAtraso(11 * time.Second)
+		servidorB := criarServidorComAtraso(12 * time.Second)
 
-	servidorRapido := criarServidorComAtraso(19 * time.Millisecond)
+		defer servidorA.Close()
+		defer servidorB.Close()
 
-	URLLenta := servidorLento.URL
-	URLRapida := servidorRapido.URL
+		_, err := Configuravel(servidorA.URL, servidorB.URL, 20*time.Millisecond)
 
-	esperado := URLRapida
+		if err == nil {
+			t.Error("esperava um erro, mas não obtive um")
+		}
 
-	resultado := Corredor(URLLenta, URLRapida)
+	})
+	t.Run("compara a velocidade de servidores, retornando o endereço mais rápido", func(t *testing.T) {
+		servidorLento := criarServidorComAtraso(20 * time.Millisecond)
 
-	if resultado != esperado {
-		t.Errorf("resultado '%s', esperado '%s'", resultado, esperado)
-	}
+		servidorRapido := criarServidorComAtraso(0 * time.Millisecond)
 
-	servidorLento.Close()
-	servidorRapido.Close()
+		URLLenta := servidorLento.URL
+		URLRapida := servidorRapido.URL
+
+		defer servidorLento.Close()
+		defer servidorRapido.Close()
+
+		esperado := URLRapida
+
+		resultado, _ := Corredor(URLLenta, URLRapida)
+
+		if resultado != esperado {
+			t.Errorf("resultado '%s', esperado '%s'", resultado, esperado)
+		}
+	})
 
 }
 
