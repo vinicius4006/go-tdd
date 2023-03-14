@@ -6,14 +6,8 @@ import (
 	"time"
 )
 
-type SleeperPadrao struct {
-}
-
-func (d *SleeperPadrao) Sleep() {
-	time.Sleep(1 * time.Second)
-}
-
 func main() {
-	sleeper := &SleeperPadrao{}
+	sleeper := &entity.SleeperConfiguravel{Duracao: 1 * time.Second, Pausa: time.Sleep}
+
 	entity.Contagem(os.Stdout, sleeper)
 }
