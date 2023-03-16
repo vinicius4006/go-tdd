@@ -21,12 +21,15 @@ func TestHandler(t *testing.T) {
 		cancellingCtx, cancel := context.WithCancel(request.Context())
 		time.AfterFunc(5*time.Millisecond, cancel)
 
+		//estou adicionando o contexto a minha solicitacao
 		request = request.WithContext(cancellingCtx)
-		response := httptest.NewRecorder()
+		response := &entity.SpyResponseWriter{}
 
 		svr.ServeHTTP(response, request)
 
-		store.AssertWasCancelled()
+		if response.Written {
+			t.Error("uma resposta não deveria ter sido escrita")
+		}
 
 	})
 
@@ -43,7 +46,6 @@ func TestHandler(t *testing.T) {
 			t.Errorf(`resultado "%s", esperado "%s"`, response.Body.String(), data)
 		}
 
-		store.AssertWasNotCancelled()
 	})
 
 }
