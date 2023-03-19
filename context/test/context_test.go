@@ -28,7 +28,7 @@ func (s *SpyResponseWriter) WriteHeader(statusCode int) {
 
 type SpyStore struct {
 	response string
-	t        testing.T
+	t        *testing.T
 }
 
 func (s *SpyStore) Fetch(ctx context.Context) (string, error) {
@@ -60,7 +60,7 @@ func (s *SpyStore) Fetch(ctx context.Context) (string, error) {
 func TestHandler(t *testing.T) {
 	data := "olá, mundo"
 	t.Run("avisa a store para cancelar o trabalho se a requisição for cancelada", func(t *testing.T) {
-		store := &SpyStore{response: data}
+		store := &SpyStore{response: data, t: t}
 
 		svr := entity.Server(store)
 
@@ -81,8 +81,8 @@ func TestHandler(t *testing.T) {
 	})
 
 	t.Run("retorna dados da store", func(t *testing.T) {
-		store := SpyStore{response: data}
-		svr := entity.Server(&store)
+		store := &SpyStore{response: data}
+		svr := entity.Server(store)
 
 		request := httptest.NewRequest(http.MethodGet, "/", nil)
 		response := httptest.NewRecorder()

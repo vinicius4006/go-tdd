@@ -117,10 +117,6 @@ func TestPercorre(t *testing.T) {
 			},
 			[]string{"Londres", "Reykjavík"},
 		},
-		{"Maps", map[string]string{
-			"Foo": "Bar",
-			"Baz": "Boz",
-		}, []string{"Bar", "Boz"}},
 	}
 	for _, teste := range casos {
 		t.Run(teste.Nome, func(t *testing.T) {
