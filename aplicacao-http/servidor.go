@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 )
@@ -8,6 +9,7 @@ import (
 type ArmazenamentoJogador interface {
 	ObterPontuacaoJogador(nome string) int
 	RegistrarVitoria(nome string)
+	ObterLiga() []Jogador
 }
 
 type ServidorJogador struct {
@@ -31,7 +33,8 @@ func NovoServidorJogador(armazenamento ArmazenamentoJogador) *ServidorJogador {
 }
 
 func (s *ServidorJogador) manipulaLiga(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
+	w.Header().Set("content-type", "application/json")
+	json.NewEncoder(w).Encode(s.Armazenamento.ObterLiga())
 }
 
 func (s *ServidorJogador) manipulaJogadores(w http.ResponseWriter, r *http.Request) {
