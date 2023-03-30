@@ -4,8 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"testing"
 )
@@ -23,7 +25,7 @@ func (e *EsbocoArmazenamentoJogador) ObterPontuacaoJogador(nome string) int {
 	return pontuacao
 }
 
-func (e *EsbocoArmazenamentoJogador) ObterLiga() []Jogador {
+func (e *EsbocoArmazenamentoJogador) ObterLiga() Liga {
 	return e.liga
 }
 
@@ -96,7 +98,7 @@ func TestObterJogadores(t *testing.T) {
 		"Pedro": 10,
 	}, nil, nil}
 
-	servidor := &ServidorJogador{Armazenamento: &armazenamento}
+	servidor := NovoServidorJogador(&armazenamento)
 	t.Run("retornar resultado de Maria", func(t *testing.T) {
 		requisicao := novaRequisicaoObterPontuacao("Maria")
 		resposta := httptest.NewRecorder()
@@ -146,7 +148,7 @@ func TestArmazenamentoVitorias(t *testing.T) {
 		nil,
 	}
 
-	servidor := &ServidorJogador{Armazenamento: &armazenamento}
+	servidor := NovoServidorJogador(&armazenamento)
 
 	t.Run("registra vitorias na chamada ao método HTTP POST", func(t *testing.T) {
 		jogador := "Maria"
@@ -168,8 +170,10 @@ func TestArmazenamentoVitorias(t *testing.T) {
 }
 
 func TestRegistrarVitoriasEBuscarEstasVitorias(t *testing.T) {
-	armazenamento := NovoArmazenamentoJogadorEmMemoria()
-	servidor := ServidorJogador{Armazenamento: armazenamento}
+	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, "")
+	defer limpaBancoDeDados()
+	armazenamento := NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
+	servidor := NovoServidorJogador(armazenamento)
 	jogador := "Maria"
 
 	servidor.ServeHTTP(httptest.NewRecorder(), novaRequisicaoRegistrarVitoriaPost(jogador))
@@ -234,7 +238,9 @@ func TestLiga(t *testing.T) {
 }
 
 func TestGravaVitoriasEAsRetorna(t *testing.T) {
-	armazenamento := NovoArmazenamentoJogadorEmMemoria()
+	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, "")
+	armazenamento := NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
+	defer limpaBancoDeDados()
 	servidor := NovoServidorJogador(armazenamento)
 	jogador := "Pepper"
 
@@ -264,5 +270,80 @@ func TestGravaVitoriasEAsRetorna(t *testing.T) {
 		}
 
 		verificaLiga(t, obtido, esperado)
+	})
+
+}
+
+func definePontuacaoIgual(t *testing.T, recebido, esperado int) {
+	if recebido != esperado {
+		t.Errorf("recebido %d esperado %d", recebido, esperado)
+	}
+}
+
+func criaArquivoTemporario(t *testing.T, dadoInicial string) (io.ReadWriteSeeker, func()) {
+	t.Helper()
+
+	arquivotmp, err := ioutil.TempFile("", "db")
+
+	if err != nil {
+		t.Fatalf("Não foi possível escrever o arquivo temporário %v", err)
+	}
+
+	arquivotmp.Write([]byte(dadoInicial))
+	removeArquivo := func() {
+		arquivotmp.Close()
+		os.Remove(arquivotmp.Name())
+	}
+
+	return arquivotmp, removeArquivo
+}
+
+func TestSistemaDeArquivoDeArmazenamentoDoJogador(t *testing.T) {
+	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, `[
+		{"Nome": "Cleo", "Vitorias": 10},
+		{"Nome": "Chris", "Vitorias": 33}]`)
+	armazenamento := NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
+	defer limpaBancoDeDados()
+	t.Run("/liga de um leitor", func(t *testing.T) {
+
+		recebido := armazenamento.ObterLiga()
+
+		esperado := []Jogador{
+			{"Cleo", 10},
+			{"Chris", 33},
+		}
+
+		verificaLiga(t, recebido, esperado)
+
+		recebido = armazenamento.ObterLiga()
+		verificaLiga(t, recebido, esperado)
+
+	})
+
+	t.Run("pegar pontuação do jogador", func(t *testing.T) {
+		recebido := armazenamento.ObterPontuacaoJogador("Chris")
+
+		esperado := 33
+
+		definePontuacaoIgual(t, recebido, esperado)
+	})
+
+	t.Run("armazena vitórias de um jogador existente", func(t *testing.T) {
+		armazenamento.RegistrarVitoria("Chris")
+
+		recebido := armazenamento.ObterPontuacaoJogador("Chris")
+
+		esperado := 34
+
+		definePontuacaoIgual(t, recebido, esperado)
+	})
+
+	t.Run("armazena vitorias de novos jogadores", func(t *testing.T) {
+		armazenamento.RegistrarVitoria("Pepper")
+
+		recebido := armazenamento.ObterPontuacaoJogador("Pepper")
+		esperado := 1
+
+		definePontuacaoIgual(t, recebido, esperado)
 	})
 }

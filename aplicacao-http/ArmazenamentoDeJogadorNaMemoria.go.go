@@ -5,7 +5,7 @@ type ArmazenamentoJogadorEmMemoria struct {
 }
 
 // ObterLiga implements ArmazenamentoJogador
-func (a *ArmazenamentoJogadorEmMemoria) ObterLiga() []Jogador {
+func (a *ArmazenamentoJogadorEmMemoria) ObterLiga() Liga {
 	var liga []Jogador
 
 	for nome, vitorias := range a.Armazenamento {
@@ -21,11 +21,4 @@ func (a *ArmazenamentoJogadorEmMemoria) ObterPontuacaoJogador(nome string) int {
 
 func (a *ArmazenamentoJogadorEmMemoria) RegistrarVitoria(nome string) {
 	a.Armazenamento[nome]++
-}
-
-func NovoArmazenamentoJogadorEmMemoria() ArmazenamentoJogador {
-
-	return &ArmazenamentoJogadorEmMemoria{
-		Armazenamento: map[string]int{},
-	}
 }
