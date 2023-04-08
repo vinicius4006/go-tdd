@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 )
 
 const jsonContentType = "application/json"
@@ -65,4 +66,25 @@ func (s *ServidorJogador) registrarVitoria(w http.ResponseWriter, r *http.Reques
 
 	s.Armazenamento.RegistrarVitoria(jogador)
 	w.WriteHeader(http.StatusAccepted)
+}
+
+func ArmazenamentoSistemaDeArquivoJogadorAPartirDeArquivo(path string) (*SistemaDeArquivoDeArmazenamentoDoJogador, func(), error) {
+	db, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("falha ao abrir %s %v", path, err)
+	}
+
+	closeFunc := func() {
+		db.Close()
+	}
+
+	armazenamento, err := NovoSistemaDeArquivoDeArmazenamentoDoJogador(db)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("falha ao criar sistema de arquivos para armazenar jogadores, %v ", err)
+	}
+
+	return armazenamento, closeFunc, nil
+
 }

@@ -1,39 +1,19 @@
-package test
+package servidor_test
 
 import (
 	"appHttp/poquer"
+	"appHttp/test"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"reflect"
 	"testing"
 )
 
 const tipoDoConteudodoJSON = "application/json"
-
-type EsbocoArmazenamentoJogador struct {
-	pontuacoes        map[string]int
-	registrosVitorias []string
-	liga              []poquer.Jogador
-}
-
-func (e *EsbocoArmazenamentoJogador) ObterPontuacaoJogador(nome string) int {
-	pontuacao := e.pontuacoes[nome]
-	return pontuacao
-}
-
-func (e *EsbocoArmazenamentoJogador) ObterLiga() poquer.Liga {
-	return e.liga
-}
-
-func (e *EsbocoArmazenamentoJogador) RegistrarVitoria(nome string) {
-	e.registrosVitorias = append(e.registrosVitorias, nome)
-}
 
 // funções dentro do teste
 func verificarCorpoResposta(t *testing.T, recebido, esperado string) {
@@ -95,10 +75,10 @@ func verificaTipoDoConteudo(t *testing.T, resposta *httptest.ResponseRecorder, e
 
 // Testes começam aqui
 func TestObterJogadores(t *testing.T) {
-	armazenamento := EsbocoArmazenamentoJogador{map[string]int{
+	armazenamento := test.EsbocoArmazenamentoJogador{Pontuacoes: map[string]int{
 		"Maria": 20,
 		"Pedro": 10,
-	}, nil, nil}
+	}, RegistrosVitorias: nil, Liga: nil}
 
 	servidor := poquer.NovoServidorJogador(&armazenamento)
 	t.Run("retornar resultado de Maria", func(t *testing.T) {
@@ -144,10 +124,10 @@ func TestObterJogadores(t *testing.T) {
 }
 
 func TestArmazenamentoVitorias(t *testing.T) {
-	armazenamento := EsbocoArmazenamentoJogador{
-		map[string]int{},
-		[]string{},
-		nil,
+	armazenamento := test.EsbocoArmazenamentoJogador{
+		Pontuacoes:        map[string]int{},
+		RegistrosVitorias: []string{},
+		Liga:              nil,
 	}
 
 	servidor := poquer.NovoServidorJogador(&armazenamento)
@@ -161,18 +141,18 @@ func TestArmazenamentoVitorias(t *testing.T) {
 
 		verificarRespostaCodigoStatus(t, resposta.Code, http.StatusAccepted)
 
-		if len(armazenamento.registrosVitorias) != 1 {
-			t.Errorf("verifiquei %d chamadas a RegistrarVitoria, esperava %d", len(armazenamento.registrosVitorias), 1)
+		if len(armazenamento.RegistrosVitorias) != 1 {
+			t.Errorf("verifiquei %d chamadas a RegistrarVitoria, esperava %d", len(armazenamento.RegistrosVitorias), 1)
 		}
 
-		if armazenamento.registrosVitorias[0] != jogador {
-			t.Errorf("não registrou o vencedor corretamente, recebi '%s', esperava '%s'", armazenamento.registrosVitorias[0], jogador)
+		if armazenamento.RegistrosVitorias[0] != jogador {
+			t.Errorf("não registrou o vencedor corretamente, recebi '%s', esperava '%s'", armazenamento.RegistrosVitorias[0], jogador)
 		}
 	})
 }
 
 func TestRegistrarVitoriasEBuscarEstasVitorias(t *testing.T) {
-	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, `[]`)
+	bancoDeDados, limpaBancoDeDados := test.CriaArquivoTemporario(t, `[]`)
 	defer limpaBancoDeDados()
 	armazenamento, err := poquer.NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
 	servidor := poquer.NovoServidorJogador(armazenamento)
@@ -198,7 +178,7 @@ func TestRegistrarVitoriasEBuscarEstasVitorias(t *testing.T) {
 func TestLiga(t *testing.T) {
 
 	t.Run("retorna 200 em /liga", func(t *testing.T) {
-		armazenamento := EsbocoArmazenamentoJogador{}
+		armazenamento := test.EsbocoArmazenamentoJogador{}
 		servidor := poquer.NovoServidorJogador(&armazenamento)
 		requisicao := novaRequisicaoDeLiga()
 		resposta := httptest.NewRecorder()
@@ -223,7 +203,7 @@ func TestLiga(t *testing.T) {
 			{Nome: "Tiest", Vitorias: 14},
 		}
 
-		armazenamento := EsbocoArmazenamentoJogador{nil, nil, ligaEsperada}
+		armazenamento := test.EsbocoArmazenamentoJogador{Pontuacoes: nil, RegistrosVitorias: nil, Liga: ligaEsperada}
 
 		servidor := poquer.NovoServidorJogador(&armazenamento)
 
@@ -250,7 +230,7 @@ func defineSemErro(t *testing.T, err error) {
 	}
 }
 func TestGravaVitoriasEAsRetorna(t *testing.T) {
-	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, `[]`)
+	bancoDeDados, limpaBancoDeDados := test.CriaArquivoTemporario(t, `[]`)
 	armazenamento, err := poquer.NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
 
 	defineSemErro(t, err)
@@ -281,7 +261,7 @@ func TestGravaVitoriasEAsRetorna(t *testing.T) {
 		obtido := obterLigaDaResposta(t, resposta.Body)
 
 		esperado := []poquer.Jogador{
-			{"Pepper", 3},
+			{Nome: "Pepper", Vitorias: 3},
 		}
 
 		verificaLiga(t, obtido, esperado)
@@ -295,26 +275,8 @@ func definePontuacaoIgual(t *testing.T, recebido, esperado int) {
 	}
 }
 
-func criaArquivoTemporario(t *testing.T, dadoInicial string) (*os.File, func()) {
-	t.Helper()
-
-	arquivotmp, err := ioutil.TempFile("", "db")
-
-	if err != nil {
-		t.Fatalf("Não foi possível escrever o arquivo temporário %v", err)
-	}
-
-	arquivotmp.Write([]byte(dadoInicial))
-	removeArquivo := func() {
-		arquivotmp.Close()
-		os.Remove(arquivotmp.Name())
-	}
-
-	return arquivotmp, removeArquivo
-}
-
 func TestSistemaDeArquivoDeArmazenamentoDoJogador(t *testing.T) {
-	bancoDeDados, limpaBancoDeDados := criaArquivoTemporario(t, `[
+	bancoDeDados, limpaBancoDeDados := test.CriaArquivoTemporario(t, `[
 		{"Nome": "Cleo", "Vitorias": 10},
 		{"Nome": "Chris", "Vitorias": 33}]`)
 	armazenamento, err := poquer.NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados)
@@ -327,8 +289,8 @@ func TestSistemaDeArquivoDeArmazenamentoDoJogador(t *testing.T) {
 		recebido := armazenamento.ObterLiga()
 
 		esperado := []poquer.Jogador{
-			{"Chris", 33},
-			{"Cleo", 10},
+			{Nome: "Chris", Vitorias: 33},
+			{Nome: "Cleo", Vitorias: 10},
 		}
 
 		verificaLiga(t, recebido, esperado)
@@ -366,7 +328,7 @@ func TestSistemaDeArquivoDeArmazenamentoDoJogador(t *testing.T) {
 	})
 
 	t.Run("funciona com um arquivo vazio", func(t *testing.T) {
-		bancoDeDados2, limpaBancoDeDados2 := criaArquivoTemporario(t, "")
+		bancoDeDados2, limpaBancoDeDados2 := test.CriaArquivoTemporario(t, "")
 		defer limpaBancoDeDados2()
 		_, err := poquer.NovoSistemaDeArquivoDeArmazenamentoDoJogador(bancoDeDados2)
 
@@ -377,9 +339,9 @@ func TestSistemaDeArquivoDeArmazenamentoDoJogador(t *testing.T) {
 		recebido := armazenamento.ObterLiga()
 
 		esperado := []poquer.Jogador{
-			{"Chris", 34},
-			{"Cleo", 10},
-			{"Pepper", 1},
+			{Nome: "Chris", Vitorias: 34},
+			{Nome: "Cleo", Vitorias: 10},
+			{Nome: "Pepper", Vitorias: 1},
 		}
 
 		verificaLiga(t, recebido, esperado)
